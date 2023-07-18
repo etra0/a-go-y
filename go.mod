@@ -1,4 +1,4 @@
-module a-go-y
+module github.com/etra0/a-go-y
 
 go 1.20
 
