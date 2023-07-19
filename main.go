@@ -149,6 +149,7 @@ func main() {
 
 		go tg.AddRequest(line)
 	}
+	fmt.Println("Found", len(tg.magnets), "magnets")
 
 	tg.DoTorrentRequests()
 	fmt.Println("Waiting for all requests to finish...")
