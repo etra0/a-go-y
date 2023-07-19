@@ -15,12 +15,11 @@ import (
 )
 
 type TorrentGetter struct {
-	client              *torrent.Client
-	client_mutex        sync.Mutex
-	total_requests      sync.WaitGroup
-	torrent_infos_mutex sync.Mutex
-	torrent_infos       []TorrentInfo
-	timeout             int64
+	client       *torrent.Client
+	client_mutex sync.Mutex
+	magnets      []string
+	torrents     chan *TorrentInfo
+	timeout      int64
 }
 
 type TorrentInfo struct {
@@ -30,22 +29,48 @@ type TorrentInfo struct {
 
 func NewTorrentGetter(timeout int64) *TorrentGetter {
 	c, _ := torrent.NewClient(nil)
-	return &TorrentGetter{client: c, client_mutex: sync.Mutex{}, total_requests: sync.WaitGroup{}, torrent_infos_mutex: sync.Mutex{}, torrent_infos: []TorrentInfo{}, timeout: timeout}
+	return &TorrentGetter{
+		client:       c,
+		client_mutex: sync.Mutex{},
+		magnets:      []string{},
+		timeout:      timeout,
+		torrents:     make(chan *TorrentInfo),
+	}
+}
+
+func (tg *TorrentGetter) AddRequest(magnet string) {
+	tg.magnets = append(tg.magnets, magnet)
 }
 
 func (tg *TorrentGetter) Close() {
 	tg.client.Close()
 }
 
-func (tg *TorrentGetter) GetTorrentInfos() []TorrentInfo {
-	tg.total_requests.Wait()
-	return tg.torrent_infos
+func (tg *TorrentGetter) DoTorrentRequests() {
+	wg := sync.WaitGroup{}
+	for _, magnet := range tg.magnets {
+		magnet := magnet
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := tg.getTorrentInfo(magnet)
+			if result != nil {
+				tg.torrents <- &TorrentInfo{magnet: magnet, info: result}
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(tg.torrents)
+	}()
+}
+
+func (tg *TorrentGetter) GetTorrentInfos() <-chan *TorrentInfo {
+	return tg.torrents
 }
 
 func (tg *TorrentGetter) getTorrentInfo(magnet string) *tmetainfo.Info {
-	tg.total_requests.Add(1)
-	defer tg.total_requests.Done()
-
 	log.Info("Adding magnet: ", magnet)
 	tg.client_mutex.Lock()
 	t, err := tg.client.AddMagnet(magnet)
@@ -63,12 +88,6 @@ func (tg *TorrentGetter) getTorrentInfo(magnet string) *tmetainfo.Info {
 	case <-time.After(time.Duration(tg.timeout) * time.Second):
 		log.Info("Timed out on ", magnet)
 		result = nil
-	}
-
-	if result != nil {
-		tg.torrent_infos_mutex.Lock()
-		tg.torrent_infos = append(tg.torrent_infos, TorrentInfo{magnet: magnet, info: result})
-		tg.torrent_infos_mutex.Unlock()
 	}
 
 	return result
@@ -128,15 +147,14 @@ func main() {
 			continue
 		}
 
-		go tg.getTorrentInfo(line)
+		go tg.AddRequest(line)
 	}
 
+	tg.DoTorrentRequests()
 	fmt.Println("Waiting for all requests to finish...")
 
-	log.Info("Info: ", tg.GetTorrentInfos())
-
 	// TODO: find how to sort this without being extremely annoying in go.
-	for _, info := range tg.GetTorrentInfos() {
+	for info := range tg.GetTorrentInfos() {
 		maxFileSize := 0
 		var largestFile []string
 
@@ -148,7 +166,8 @@ func main() {
 			}
 		}
 
-		fmt.Println("magnet:", info.magnet, largestFile, "with size", float32(maxFileSize)/1024./1024./1024., "GB")
+		fileSizeInGb := fmt.Sprintf("%.2f", float32(maxFileSize)/1024./1024./1024.)
+		fmt.Println("magnet:", info.magnet, largestFile, "with size", fileSizeInGb, "GB")
 	}
 
 }
