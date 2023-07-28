@@ -11,6 +11,7 @@ import (
 
 	"github.com/anacrolix/torrent"
 	tmetainfo "github.com/anacrolix/torrent/metainfo"
+	colorable "github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -77,7 +78,7 @@ func (tg *TorrentGetter) getTorrentInfo(magnet string) *tmetainfo.Info {
 	tg.client_mutex.Unlock()
 
 	if err != nil {
-		log.Warning("Error adding magnet: ", err)
+		log.Warning("Error adding magnet: ", magnet)
 		return nil
 	}
 
@@ -106,14 +107,17 @@ func containsAllKeywords(line string, keywords []string) bool {
 }
 
 func main() {
+	// Log initialization
+	log.SetLevel(log.WarnLevel)
+	log.SetFormatter(&log.TextFormatter{ForceColors: true})
+	log.SetOutput(colorable.NewColorableStdout())
+
 	magnets := flag.String("magnets", "", "File that contains the list of magnets to search")
 	kw := flag.String("keywords", "", "List of keywords to search for in the torrent files")
 	timeout := flag.Int("timeout", 120, "Timeout in seconds to wait for a response")
 	verbose := flag.Bool("verbose", false, "Verbose output")
 	flag.Parse()
 
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.WarnLevel)
 	if *verbose {
 		log.SetLevel(log.InfoLevel)
 	}
