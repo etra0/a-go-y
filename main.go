@@ -11,6 +11,7 @@ import (
 
 	"github.com/anacrolix/torrent"
 	tmetainfo "github.com/anacrolix/torrent/metainfo"
+	color "github.com/fatih/color"
 	colorable "github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
 )
@@ -106,9 +107,35 @@ func containsAllKeywords(line string, keywords []string) bool {
 	return true
 }
 
+func formatTorrent(info *TorrentInfo) {
+	maxFileSize := 0
+	var largestFile string
+
+	for _, file := range info.info.Files {
+		file := file
+		if file.Length > int64(maxFileSize) {
+			maxFileSize = int(file.Length)
+			largestFile = file.Path[len(file.Path)-1]
+		}
+	}
+
+	title_print := color.New(color.Bold, color.FgGreen)
+	title_print.Printf("* Magnet: ")
+	fmt.Printf("%s\n", info.magnet)
+
+	fileSizeInGb := float32(maxFileSize) / 1024. / 1024. / 1024.
+
+	label := color.New(color.Bold)
+	label.Printf("* Largest file: ")
+	fmt.Printf("%s\n", largestFile)
+	label.Printf("* Largest file size: ")
+	fmt.Printf("%.2f GB\n", fileSizeInGb)
+	fmt.Println()
+}
+
 func main() {
 	// Log initialization
-	log.SetLevel(log.WarnLevel)
+	log.SetLevel(log.PanicLevel)
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	log.SetOutput(colorable.NewColorableStdout())
 
@@ -160,19 +187,7 @@ func main() {
 
 	// TODO: find how to sort this without being extremely annoying in go.
 	for info := range tg.GetTorrentInfos() {
-		maxFileSize := 0
-		var largestFile []string
-
-		for _, file := range info.info.Files {
-			file := file
-			if file.Length > int64(maxFileSize) {
-				maxFileSize = int(file.Length)
-				largestFile = file.Path
-			}
-		}
-
-		fileSizeInGb := fmt.Sprintf("%.2f", float32(maxFileSize)/1024./1024./1024.)
-		fmt.Println("magnet:", info.magnet, largestFile, "with size", fileSizeInGb, "GB")
+		formatTorrent(info)
 	}
 
 }
