@@ -11,11 +11,11 @@ To install simply run `go install github.com/etra0/a-go-y`.
 
 ```
 -keywords string
-        List of keywords to search for in the torrent files
-  -magnets string
-        File that contains the list of magnets to search
-  -timeout int
-        Timeout in seconds to wait for a response (default 120)
-  -verbose
-        Verbose output
+    List of keywords to search for in the torrent files
+-magnets string
+    File that contains the list of magnets to search
+-timeout int
+    Timeout in seconds to wait for a response (default 120)
+-verbose
+    Verbose output
 ```
